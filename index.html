@@ -36,9 +36,11 @@
   <body>
     <div id="root" class="app-wrapper"></div>
     <script>
-      (function () {
+      const backend_url = "http://austin-backend.jujiembs.com"
+
+      function init() {
         // 请求后端的url
-        localStorage.setItem("backend_url", "http://localhost:8080");
+        localStorage.setItem("backend_url", backend_url);
 
         let amis = amisRequire('amis/embed');
         const match = amisRequire('path-to-regexp').match;
@@ -130,6 +132,38 @@
             location: history.location
           },
           {
+            requestAdaptor: (api) => {
+              if (localStorage.getItem("token")) {
+                api.headers["Authorization"] = localStorage.getItem("token");
+              }
+              return api;
+            },
+            fetcher: function (params) {
+                  var method = params.method;
+                  var url = params.url;
+                  var data = params.data;
+                  return new Promise(function (resolve, reject) {
+                      fetch(url, {
+                          method: method,
+                          headers: new Headers({
+                              "Content-Type": "application/json;",
+                              "Authorization": localStorage.getItem("token")
+                          }),
+                          body: JSON.stringify(data)
+                      }).then(function (res) {
+                          if (!res.ok) {
+                              if (res.status == 401 || res.status == 403) {
+                                  ddAlert('提示', '无权访问')
+                              }
+                          }
+                          return res.json();
+                      }).then(function (response) {
+                          resolve({
+                              "data": response,
+                          });
+                      });
+                  });
+              },
             // watchRouteChange: fn => {
             //   return history.listen(fn);
             // },
@@ -194,6 +228,33 @@
             location: state.location || state
           });
         });
+      }
+
+
+      (function () {
+        let href = document.location.href
+        let creator = ""
+        if(href.indexOf("creator") >= 0) {
+          let query = href.substring(href.indexOf("creator=") + "creator=".length)
+          creator = query.indexOf("&") >=0 ? query.substring(0, query.indexOf("&")) : query
+        }
+        localStorage.setItem("openId", creator);
+        localStorage.setItem("creator", creator);
+
+        fetch(backend_url + "/user/login?creator=" + creator, {
+              method: "get",
+              headers: new Headers({
+                  "Content-Type": "application/json;",
+              })
+          }).then(function (res) {
+              if (!res.ok) {
+                resolve({})
+              }
+              return res.json();
+          }).then((result) => {
+                localStorage.setItem("token", result['data']['token'])
+                init()
+          });
       })();
     </script>
   </body>
